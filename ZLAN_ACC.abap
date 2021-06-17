@@ -479,9 +479,7 @@ selection-screen begin of block b1 with frame title text-001.
 parameters:
   p_id(40)     modif id m1,
   p_repnam(40) modif id m1, "资源项目名
-  p_text(40)   modif id m1,
-  p_tag(40)    modif id m1,
-  p_url(250)   modif id m1.
+  p_text(40)   modif id m1.
 
 select-options:
 s_prog for sy-repid no intervals modif id m2.
@@ -489,6 +487,10 @@ s_prog for sy-repid no intervals modif id m2.
 parameters:
   p_uname(40) modif id m3,
   p_passwd(9) modif id m3.
+
+parameters:
+  p_tag(40)  modif id m2,
+  p_url(250) modif id m2 lower case.
 selection-screen end of block b1.
 
 selection-screen begin of block b2 with frame title text-002.
@@ -3029,6 +3031,14 @@ form dtel_set  tables   p_dtel structure gt_dtel
   endloop.
 endform.                    " DTEL_SET
 
+*&---------------------------------------------------------------------*
+*&      Form  class_set
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_CLASS       text
+*      -->P_GV_PACKAGE  text
+*----------------------------------------------------------------------*
 form class_set  tables   p_class structure gt_class
                using    p_gv_package.
 
@@ -3160,10 +3170,12 @@ form class_set  tables   p_class structure gt_class
       data lt_objects               type standard table of dwinactiv with header line.
       data lv_str like dwinactiv-obj_name.
       lv_str = lv_object && '%'.
+
       select *
+        into corresponding fields of table lt_objects
         from dwinactiv "未激活的对象，SE24 debug来
-        where obj_name like @lv_str and object in ( 'CLSD','CPRI','CPRO','CPUB','METH' )
-        into corresponding fields of table @lt_objects.
+        where obj_name like lv_str and object in ('CLSD','CPRI','CPRO','CPUB','METH')
+        .
 
       call function 'RS_WORKING_OBJECTS_ACTIVATE'
         tables
@@ -3173,10 +3185,11 @@ form class_set  tables   p_class structure gt_class
           cancelled              = 2
           insert_into_corr_error = 3.
       if sy-subrc ne 0.
+        data lv_rtmsg type bapi_msg.
         message id sy-msgid
           type sy-msgty
           number sy-msgno
-          with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 into data(lv_rtmsg).
+          with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 into lv_rtmsg.
       endif.
       if lv_rtmsg is initial.
         lv_rtmsg = '成功'.
@@ -4969,6 +4982,17 @@ form dict_add  tables
   endcase.
 
 endform.                    " DICT_ADD
+*&---------------------------------------------------------------------*
+*&      Form  dict_class_add
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GT_TABLE text
+*      -->P_GT_TTYP  text
+*      -->P_GT_DTEL  text
+*      -->P_GT_CLASS text
+*      -->P_OBJECT   text
+*----------------------------------------------------------------------*
 form dict_class_add  tables
                         p_gt_table structure gt_table
                         p_gt_ttyp structure gt_ttyp
@@ -5862,6 +5886,9 @@ form rep_search .
    '*' in p_text with '%',
    '*' in p_url with '%'.
 
+*后面改动，不用标签和url作为查询条件了
+  clear:p_tag,p_url.
+
 *生成post数据
   lt_fields-key = 'id'. lt_fields-value = p_id. append lt_fields.
   lt_fields-key = 'text'. lt_fields-value = p_text. append lt_fields.
@@ -6229,13 +6256,6 @@ form object_display  using    p_node_key.
   endloop.
 
   if titletext is not initial. "代码
-    if gt_rep-program = 'ZLAN_ACC' and gt_rep-uname = '小懒'.
-      clear:abaptext_tab,abaptext_tab[].
-      abaptext_tab-line = 'report zlan_acc.'. append abaptext_tab.
-      abaptext_tab-line = '*powered by lan'. append abaptext_tab.
-      abaptext_tab-line = 'submit zlan_acc.'. append abaptext_tab.
-    endif.
-
 *    editor-call for abaptext_tab  title titletext display-mode.
     insert report 'ZLAN_ACC_TMP_CODE'
       from abaptext_tab[].
@@ -6721,10 +6741,11 @@ endform.                    " DICT_NAME_GET_BY_PROGNAME
 *----------------------------------------------------------------------*
 form rep_init .
   data:
-    lv_package like tadir-devclass value '$TMP',
-    lv_program like sy-repid value 'ZLAN_ACC'.
+    lv_package  like tadir-devclass value '$TMP',
+    lv_program  like sy-repid value 'ZLAN_ACC',
+    lv_ques(50).
 
-  data(lv_ques) = '即将开始程序初始化，请选择同步服务器还是本地文件？'.
+  lv_ques = '即将开始程序初始化，请选择同步服务器还是本地文件？'.
   call function 'POPUP_TO_CONFIRM'
     exporting
       titlebar       = '初始化'
@@ -6858,7 +6879,7 @@ form class_get  tables   p_gt_class structure gt_class.
     modify p_gt_class.
   endloop.
 
-endform.
+endform.                    "class_get
 *&---------------------------------------------------------------------*
 *& Form SCREEN_CHECK
 *&---------------------------------------------------------------------*
@@ -6872,4 +6893,4 @@ form screen_check .
     message '填写必输字段' type 'S' display like 'E'.
     leave list-processing and return to screen 0.
   endif.
-endform.
+endform.                    "screen_check
